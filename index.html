@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D Cone – Spherical Coordinates Explorer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Playfair+Display:wght@700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c14;
+    --panel: #111520;
+    --border: #1e2540;
+    --accent: #4af0b4;
+    --accent2: #f0c44a;
+    --accent3: #f04a7e;
+    --text: #c8d0e8;
+    --dim: #5a6080;
+  }
+
+  body {
+    font-family: 'Space Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: row;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* ── Desktop: side-by-side ── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+  }
+
+  canvas { display: block; width: 100% !important; height: 100% !important; touch-action: none; }
+
+  #panel {
+    width: 280px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px;
+    gap: 18px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  #panel h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    color: var(--accent);
+    line-height: 1.3;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+
+  /* ── Mobile panel toggle button ── */
+  #panel-toggle {
+    display: none;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 20;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    backdrop-filter: blur(4px);
+  }
+
+  .section-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .ctrl-group { display: flex; flex-direction: column; gap: 10px; }
+
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ctrl label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+
+  .ctrl label span { color: var(--accent2); font-weight: 700; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .legend {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.7rem;
+    line-height: 1.9;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .formula-box {
+    background: rgba(74,240,180,0.05);
+    border: 1px solid rgba(74,240,180,0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.68rem;
+    line-height: 2;
+    color: var(--text);
+  }
+
+  .formula-box .eq { color: var(--accent); }
+
+  .toggle-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .toggle input { display: none; }
+  .toggle-knob {
+    width: 36px; height: 18px;
+    background: var(--border);
+    border-radius: 9px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-knob::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 12px; height: 12px;
+    background: var(--dim);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  .toggle input:checked + .toggle-knob { background: rgba(74,240,180,0.3); }
+  .toggle input:checked + .toggle-knob::after { left: 21px; background: var(--accent); }
+
+  #info-overlay {
+    position: absolute;
+    top: 12px; left: 12px;
+    font-size: 0.65rem;
+    color: var(--dim);
+    pointer-events: none;
+    line-height: 1.8;
+  }
+
+  #point-coords {
+    position: absolute;
+    bottom: 16px; left: 16px;
+    background: rgba(10,12,20,0.85);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.72rem;
+    line-height: 1.9;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+
+  .coord-val { color: var(--accent2); }
+
+  /* ──────────────────────────────
+     MOBILE LAYOUT (≤ 640px)
+  ────────────────────────────── */
+  @media (max-width: 640px) {
+    body {
+      flex-direction: column;
+    }
+
+    #panel-toggle {
+      display: block;
+    }
+
+    #canvas-wrap {
+      flex: 1;
+      min-height: 0;
+    }
+
+    #panel {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      padding: 14px 14px 20px;
+      gap: 14px;
+      /* collapsed by default */
+      max-height: 0;
+      overflow: hidden;
+      padding-top: 0;
+      padding-bottom: 0;
+      transition: max-height 0.35s ease, padding 0.2s;
+    }
+
+    #panel.open {
+      max-height: 60dvh;
+      padding: 14px 14px 20px;
+    }
+
+    #panel h1 {
+      font-size: 1rem;
+      padding-bottom: 10px;
+    }
+
+    /* On mobile, show toggles in a 2-column grid */
+    .toggle-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .toggle {
+      font-size: 0.65rem;
+    }
+
+    /* Point coords smaller on mobile */
+    #point-coords {
+      font-size: 0.62rem;
+      padding: 8px 10px;
+      bottom: 10px;
+      left: 10px;
+      line-height: 1.7;
+    }
+
+    #info-overlay {
+      font-size: 0.6rem;
+      top: 10px;
+      left: 10px;
+    }
+
+    .ctrl label {
+      font-size: 0.7rem;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      width: 24px; height: 24px;
+    }
+  }
+
+  /* ── Tablet: wider panel ── */
+  @media (min-width: 641px) and (max-width: 900px) {
+    #panel {
+      width: 240px;
+    }
+    #panel h1 {
+      font-size: 1rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div id="info-overlay">Drag to rotate &nbsp;|&nbsp; Scroll / pinch to zoom</div>
+  <button id="panel-toggle">⚙ Controls</button>
+  <div id="point-coords">
+    <div>Point P &nbsp;<span style="color:var(--dim)">on cone surface</span></div>
+    <div>x = <span class="coord-val" id="px">–</span></div>
+    <div>y = <span class="coord-val" id="py">–</span></div>
+    <div>z = <span class="coord-val" id="pz">–</span></div>
+    <div>r = <span class="coord-val" id="pr">–</span> &nbsp;|&nbsp; α = <span class="coord-val" id="pa">–</span>° &nbsp;|&nbsp; φ = <span class="coord-val" id="pph">–</span>°</div>
+  </div>
+</div>
+
+<div id="panel">
+  <h1>3D Cone<br>Spherical Coordinates</h1>
+
+  <div>
+    <div class="section-title">Angles & Radius</div>
+    <div class="ctrl-group">
+      <div class="ctrl">
+        <label>Half-angle α (cone) <span id="vAlpha">30°</span></label>
+        <input type="range" id="sAlpha" min="5" max="85" value="30">
+      </div>
+      <div class="ctrl">
+        <label>Azimuthal angle φ <span id="vPhi">45°</span></label>
+        <input type="range" id="sPhi" min="0" max="360" value="45">
+      </div>
+      <div class="ctrl">
+        <label>Radius r (of P) <span id="vR">2.0</span></label>
+        <input type="range" id="sR" min="0.5" max="4" step="0.1" value="2">
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Show / Hide</div>
+    <div class="toggle-row">
+      <label class="toggle">Cone surface <input type="checkbox" id="tCone" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">Axes (x,y,z) <input type="checkbox" id="tAxes" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">Point P & proj. <input type="checkbox" id="tPoint" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">Radius line OP <input type="checkbox" id="tRadius" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">r·sinα ring <input type="checkbox" id="tRing" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">φ angle arc <input type="checkbox" id="tPhiArc" checked><span class="toggle-knob"></span></label>
+      <label class="toggle">α angle arc <input type="checkbox" id="tAlphaArc" checked><span class="toggle-knob"></span></label>
+    </div>
+  </div>
+
+  <div class="formula-box">
+    <div class="section-title" style="margin-bottom:6px">Spherical → Cartesian</div>
+    <div><span class="eq">x</span> = r · sin α · cos φ</div>
+    <div><span class="eq">y</span> = r · sin α · sin φ</div>
+    <div><span class="eq">z</span> = r · cos α</div>
+    <div style="margin-top:6px;color:var(--dim)">On cone surface: α = const</div>
+  </div>
+
+  <div class="legend">
+    <div class="section-title" style="margin-bottom:6px">Colour Guide</div>
+    <div class="legend-item"><div class="dot" style="background:#4af0b4"></div>z-axis (polar)</div>
+    <div class="legend-item"><div class="dot" style="background:#f04a7e"></div>x-axis</div>
+    <div class="legend-item"><div class="dot" style="background:#4a9af0"></div>y-axis</div>
+    <div class="legend-item"><div class="dot" style="background:#f0c44a"></div>Radius OP / point P</div>
+    <div class="legend-item"><div class="dot" style="background:#ff8c42"></div>α angle arc</div>
+    <div class="legend-item"><div class="dot" style="background:#bf6fff"></div>φ angle arc</div>
+    <div class="legend-item"><div class="dot" style="background:#4af0b4;opacity:0.4"></div>r·sinα ring</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── Panel Toggle ─────────────────────────────────────────────────────────────
+const panelToggle = document.getElementById('panel-toggle');
+const panel = document.getElementById('panel');
+panelToggle.addEventListener('click', () => {
+  panel.classList.toggle('open');
+  panelToggle.textContent = panel.classList.contains('open') ? '✕ Close' : '⚙ Controls';
+});
+
+// ─── Scene Setup ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x0a0c14, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(5, 4, 6);
+camera.lookAt(0, 1, 0);
+
+// ─── Orbit Controls ───────────────────────────────────────────────────────────
+let isDragging = false, prevX = 0, prevY = 0;
+let theta = 0.6, phi2 = 0.5, camRadius = 10;
+const target = new THREE.Vector3(0, 1, 0);
+
+function updateCamera() {
+  camera.position.set(
+    target.x + camRadius * Math.sin(phi2) * Math.sin(theta),
+    target.y + camRadius * Math.cos(phi2),
+    target.z + camRadius * Math.sin(phi2) * Math.cos(theta)
+  );
+  camera.lookAt(target);
+}
+updateCamera();
+
+// Mouse
+canvas.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  theta -= (e.clientX - prevX) * 0.01;
+  phi2 = Math.max(0.1, Math.min(Math.PI - 0.1, phi2 + (e.clientY - prevY) * 0.01));
+  prevX = e.clientX; prevY = e.clientY;
+  updateCamera();
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camRadius = Math.max(3, Math.min(20, camRadius + e.deltaY * 0.01));
+  updateCamera();
+}, { passive: false });
+
+// Touch (single-finger rotate, two-finger pinch zoom)
+let lastTouch = null;
+let lastPinchDist = null;
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    lastTouch = e.touches[0];
+    lastPinchDist = null;
+  } else if (e.touches.length === 2) {
+    lastTouch = null;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && lastTouch) {
+    theta -= (e.touches[0].clientX - lastTouch.clientX) * 0.012;
+    phi2 = Math.max(0.1, Math.min(Math.PI - 0.1, phi2 + (e.touches[0].clientY - lastTouch.clientY) * 0.012));
+    lastTouch = e.touches[0];
+    updateCamera();
+  } else if (e.touches.length === 2 && lastPinchDist !== null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    camRadius = Math.max(3, Math.min(20, camRadius - (dist - lastPinchDist) * 0.04));
+    lastPinchDist = dist;
+    updateCamera();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  if (e.touches.length < 2) lastPinchDist = null;
+  if (e.touches.length === 0) lastTouch = null;
+  else lastTouch = e.touches[0];
+}, { passive: true });
+
+// ─── Materials ────────────────────────────────────────────────────────────────
+const matCone    = new THREE.MeshPhongMaterial({ color: 0x4af0b4, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false });
+const matConeW   = new THREE.MeshBasicMaterial({ color: 0x4af0b4, wireframe: true, transparent: true, opacity: 0.18 });
+const matAxisZ   = new THREE.LineBasicMaterial({ color: 0x4af0b4 });
+const matAxisX   = new THREE.LineBasicMaterial({ color: 0xf04a7e });
+const matAxisY   = new THREE.LineBasicMaterial({ color: 0x4a9af0 });
+const matRadius  = new THREE.LineBasicMaterial({ color: 0xf0c44a, linewidth: 2 });
+const matProj    = new THREE.LineDashedMaterial({ color: 0xf0c44a, dashSize: 0.08, gapSize: 0.06, transparent: true, opacity: 0.6 });
+const matAlpha   = new THREE.LineBasicMaterial({ color: 0xff8c42, linewidth: 2 });
+const matPhiArc  = new THREE.LineBasicMaterial({ color: 0xbf6fff, linewidth: 2 });
+const matRing    = new THREE.LineBasicMaterial({ color: 0x4af0b4, transparent: true, opacity: 0.5 });
+
+// ─── Groups ───────────────────────────────────────────────────────────────────
+const gCone = new THREE.Group(), gAxes = new THREE.Group(),
+      gPoint = new THREE.Group(), gRadius = new THREE.Group(),
+      gRing = new THREE.Group(), gPhiArc = new THREE.Group(), gAlphaArc = new THREE.Group();
+scene.add(gCone, gAxes, gPoint, gRadius, gRing, gPhiArc, gAlphaArc);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(5, 8, 5); scene.add(dir);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function makeLine(points, mat) {
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const line = new THREE.Line(geo, mat);
+  if (mat.isLineDashedMaterial) line.computeLineDistances();
+  return line;
+}
+
+function makeArc(axis1, axis2, angleStart, angleEnd, r, segments = 64) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = angleStart + (angleEnd - angleStart) * i / segments;
+    pts.push(new THREE.Vector3(
+      r * (Math.cos(a) * axis1.x + Math.sin(a) * axis2.x),
+      r * (Math.cos(a) * axis1.y + Math.sin(a) * axis2.y),
+      r * (Math.cos(a) * axis1.z + Math.sin(a) * axis2.z),
+    ));
+  }
+  return pts;
+}
+
+function makeLabel(text, color) {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 48px Space Mono, monospace';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const s = new THREE.Sprite(mat); s.scale.set(0.5, 0.25, 1);
+  return s;
+}
+
+const labelZ = makeLabel('Z', '#4af0b4'); labelZ.position.set(0, 4.4, 0); gAxes.add(labelZ);
+const labelX = makeLabel('X', '#f04a7e'); labelX.position.set(4.4, 0, 0); gAxes.add(labelX);
+const labelY = makeLabel('Y', '#4a9af0'); labelY.position.set(0, 0, 4.4); gAxes.add(labelY);
+const labelP = makeLabel('P', '#f0c44a'); gPoint.add(labelP);
+const labelO = makeLabel('O', '#ffffff'); labelO.position.set(-0.3, -0.25, 0); gAxes.add(labelO);
+const labelAlpha = makeLabel('α', '#ff8c42'); gAlphaArc.add(labelAlpha);
+const labelPhi = makeLabel('φ', '#bf6fff'); gPhiArc.add(labelPhi);
+
+// ─── Build Axes ───────────────────────────────────────────────────────────────
+(function buildAxes() {
+  gAxes.add(makeLine([new THREE.Vector3(0,0,0), new THREE.Vector3(0,4,0)], matAxisZ));
+  gAxes.add(makeLine([new THREE.Vector3(0,0,0), new THREE.Vector3(4,0,0)], matAxisX));
+  gAxes.add(makeLine([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,4)], matAxisY));
+  [[0,4,0,'z'],[4,0,0,'x'],[0,0,4,'y']].forEach(([x,y,z,ax]) => {
+    const geo = new THREE.ConeGeometry(0.07, 0.25, 8);
+    const m = ax==='z' ? new THREE.MeshBasicMaterial({color:0x4af0b4})
+             : ax==='x' ? new THREE.MeshBasicMaterial({color:0xf04a7e})
+             : new THREE.MeshBasicMaterial({color:0x4a9af0});
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.position.set(x,y,z);
+    if (ax==='x') mesh.rotation.z = -Math.PI/2;
+    if (ax==='y') mesh.rotation.x = Math.PI/2;
+    gAxes.add(mesh);
+  });
+})();
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let alpha = 30, phiDeg = 45, rr = 2;
+
+function rebuild() {
+  const aRad = alpha * Math.PI / 180;
+  const pRad = phiDeg * Math.PI / 180;
+
+  const Px = rr * Math.sin(aRad) * Math.cos(pRad);
+  const Py = rr * Math.cos(aRad);
+  const Pz = rr * Math.sin(aRad) * Math.sin(pRad);
+
+  // Cone
+  while (gCone.children.length) gCone.remove(gCone.children[0]);
+  const coneH = 3.5;
+  const coneR = coneH * Math.tan(aRad);
+  const coneGeo = new THREE.ConeGeometry(coneR, coneH, 64, 1, true);
+  coneGeo.translate(0, coneH / 2, 0);
+  gCone.add(new THREE.Mesh(coneGeo, matCone));
+  gCone.add(new THREE.Mesh(coneGeo, matConeW));
+
+  // Point & Projections
+  while (gPoint.children.length > 1) gPoint.remove(gPoint.children[1]);
+  gPoint.children[0].position.set(Px + 0.2, Py + 0.1, Pz);
+
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf0c44a }));
+  sphere.position.set(Px, Py, Pz);
+  gPoint.add(sphere);
+
+  const sphereP = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf0c44a, transparent: true, opacity: 0.6 }));
+  sphereP.position.set(Px, 0, Pz);
+  gPoint.add(sphereP);
+
+  gPoint.add(makeLine([new THREE.Vector3(Px, Py, Pz), new THREE.Vector3(Px, 0, Pz)], matProj));
+
+  // Radius OP
+  while (gRadius.children.length) gRadius.remove(gRadius.children[0]);
+  gRadius.add(makeLine([new THREE.Vector3(0,0,0), new THREE.Vector3(Px,Py,Pz)], matRadius));
+  gRadius.add(makeLine([new THREE.Vector3(0,0,0), new THREE.Vector3(0,Py,0)], matProj));
+
+  // Ring
+  while (gRing.children.length) gRing.remove(gRing.children[0]);
+  const ringR = rr * Math.sin(aRad);
+  const ringY = rr * Math.cos(aRad);
+  const ringPts = [];
+  for (let i = 0; i <= 128; i++) {
+    const a = 2 * Math.PI * i / 128;
+    ringPts.push(new THREE.Vector3(ringR * Math.cos(a), ringY, ringR * Math.sin(a)));
+  }
+  gRing.add(makeLine(ringPts, matRing));
+
+  // φ arc
+  while (gPhiArc.children.length > 1) gPhiArc.remove(gPhiArc.children[1]);
+  const phiR = 0.9;
+  const phiPts = makeArc(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,1), 0, pRad, phiR);
+  gPhiArc.add(makeLine(phiPts, matPhiArc));
+  const phiMid = pRad / 2;
+  gPhiArc.children[0].position.set(
+    (phiR + 0.3) * Math.cos(phiMid), 0, (phiR + 0.3) * Math.sin(phiMid)
+  );
+
+  // α arc
+  while (gAlphaArc.children.length > 1) gAlphaArc.remove(gAlphaArc.children[1]);
+  const alphaR = 0.8;
+  const phiN = pRad;
+  const ax1 = new THREE.Vector3(0,1,0);
+  const ax2 = new THREE.Vector3(Math.cos(phiN), 0, Math.sin(phiN));
+  const alphaPts = makeArc(ax1, ax2, 0, aRad, alphaR);
+  gAlphaArc.add(makeLine(alphaPts, matAlpha));
+  const aMid = aRad / 2;
+  gAlphaArc.children[0].position.set(
+    (alphaR + 0.3) * Math.sin(aMid) * Math.cos(phiN),
+    (alphaR + 0.3) * Math.cos(aMid),
+    (alphaR + 0.3) * Math.sin(aMid) * Math.sin(phiN)
+  );
+
+  document.getElementById('px').textContent = Px.toFixed(3);
+  document.getElementById('py').textContent = Py.toFixed(3);
+  document.getElementById('pz').textContent = Pz.toFixed(3);
+  document.getElementById('pr').textContent = rr.toFixed(2);
+  document.getElementById('pa').textContent = alpha.toFixed(1);
+  document.getElementById('pph').textContent = phiDeg.toFixed(1);
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+function wire(id, valId, suffix, fn) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    document.getElementById(valId).textContent = (+el.value).toFixed(suffix === '°' ? 0 : 1) + suffix;
+    fn(+el.value);
+    rebuild();
+  });
+}
+
+wire('sAlpha', 'vAlpha', '°', v => alpha = v);
+wire('sPhi',   'vPhi',   '°', v => phiDeg = v);
+wire('sR',     'vR',     '',  v => rr = v);
+
+['tCone','tAxes','tPoint','tRadius','tRing','tPhiArc','tAlphaArc'].forEach((id, i) => {
+  const groups = [gCone, gAxes, gPoint, gRadius, gRing, gPhiArc, gAlphaArc];
+  document.getElementById(id).addEventListener('change', e => {
+    groups[i].visible = e.target.checked;
+  });
+});
+
+// ─── Resize ───────────────────────────────────────────────────────────────────
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  const h = canvas.parentElement.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', () => { resize(); });
+
+// Also resize when panel opens/closes (height changes on mobile)
+panel.addEventListener('transitionend', resize);
+
+resize();
+
+// ─── Animate ─────────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+
+rebuild();
+animate();
+</script>
+</body>
+</html>
